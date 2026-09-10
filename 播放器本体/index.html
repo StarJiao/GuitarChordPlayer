@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>和弦播放器</title>
+<style>
+/* ===== 基础令牌 ===== */
+:root{
+  --bg:#16130D;
+  --bg2:#1D1911;
+  --surface:#241F15;
+  --surface2:#2B251A;
+  --line:rgba(242,236,223,.10);
+  --line-strong:rgba(242,236,223,.20);
+  --text:#F2ECDF;
+  --text2:#B7AC94;
+  --text3:#8C806A;
+  --accent:#E8A33D;
+  --accent-deep:#C97F1F;
+  --danger:#C96A5A;
+  --display:"Iowan Old Style","Songti SC","STSong","Noto Serif SC",serif;
+  --body:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{
+  font-family:var(--body);
+  background:var(--bg);
+  color:var(--text);
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit;color:inherit;background:none;border:none;cursor:pointer;}
+button:focus-visible,.switch:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px;}
+
+/* ===== 应用外壳 ===== */
+#app{
+  display:flex;
+  height:100vh;
+  min-width:960px;
+}
+.side{
+  flex-shrink:0;
+  display:flex;
+  flex-direction:column;
+  background:var(--bg2);
+  transition:width .35s ease,opacity .35s ease,padding-left .35s ease,padding-right .35s ease,border-width .35s ease;
+  overflow:hidden;
+}
+#leftPanel{width:318px;border-right:1px solid var(--line);}
+#rightPanel{width:252px;border-left:1px solid var(--line);}
+#app.running .side{
+  width:0;
+  opacity:0;
+  padding-left:0;
+  padding-right:0;
+  border-width:0;
+  pointer-events:none;
+}
+
+/* ===== 左栏：和弦列表 ===== */
+.panel-head{
+  padding:18px 18px 12px;
+  border-bottom:1px solid var(--line);
+  flex-shrink:0;
+}
+.panel-title{
+  font-size:17px;
+  font-weight:700;
+  letter-spacing:.04em;
+}
+.panel-sub{
+  margin-top:4px;
+  font-size:12px;
+  color:var(--text3);
+}
+#chordList{
+  flex:1;
+  overflow-y:auto;
+  padding:12px;
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(84px,1fr));
+  gap:10px;
+  align-content:start;
+  scrollbar-width:thin;
+  scrollbar-color:var(--line-strong) transparent;
+}
+#chordList::-webkit-scrollbar{width:8px;}
+#chordList::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:4px;}
+.chord-card{
+  position:relative;
+  background:var(--surface);
+  border:1.5px solid transparent;
+  border-radius:12px;
+  padding:8px 6px 7px;
+  text-align:center;
+  cursor:pointer;
+  user-select:none;
+  transition:border-color .15s ease,background .15s ease,transform .15s ease;
+}
+.chord-card:hover{background:var(--surface2);transform:translateY(-1px);}
+.chord-card.selected{
+  border-color:var(--accent);
+  background:linear-gradient(180deg,rgba(232,163,61,.10),rgba(232,163,61,.03) 55%),var(--surface);
+}
+.chord-card svg{width:100%;height:auto;display:block;}
+.card-name{
+  margin-top:4px;
+  font-size:15px;
+  font-weight:700;
+  letter-spacing:.03em;
+}
+.order-badge{
+  position:absolute;
+  right:-5px;
+  bottom:-5px;
+  min-width:18px;
+  height:18px;
+  padding:0 4px;
+  border-radius:9px;
+  background:var(--accent);
+  color:#16130C;
+  font-size:11px;
+  font-weight:700;
+  line-height:18px;
+  text-align:center;
+  box-shadow:0 1px 4px rgba(0,0,0,.4);
+}
+/* 左栏底部：选中序列 */
+#summaryBar{
+  flex-shrink:0;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:10px 14px;
+  border-top:1px solid var(--line);
+  background:var(--bg2);
+}
+#sumChips{
+  flex:1;
+  min-width:0;
+  display:flex;
+  gap:6px;
+  overflow-x:auto;
+  scrollbar-width:none;
+}
+#sumChips::-webkit-scrollbar{display:none;}
+.sum-chip{
+  flex-shrink:0;
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  background:var(--surface2);
+  border:1px solid var(--line);
+  border-radius:999px;
+  padding:3px 10px;
+  font-size:12px;
+  white-space:nowrap;
+}
+.sum-chip b{color:var(--accent);font-weight:700;font-size:11px;}
+#sumEmpty{font-size:12px;color:var(--text3);white-space:nowrap;}
+#clearBtn{
+  flex-shrink:0;
+  font-size:12px;
+  color:var(--text2);
+  border:1px solid var(--line-strong);
+  border-radius:999px;
+  padding:5px 12px;
+  transition:color .15s,border-color .15s;
+}
+#clearBtn:hover{color:var(--text);border-color:var(--accent);}
+
+/* ===== 右栏：设置 ===== */
+#rightPanel .panel-head{border-bottom:none;}
+.set-list{padding:4px 18px 18px;display:flex;flex-direction:column;gap:20px;}
+.set-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+.set-label{font-size:14px;font-weight:600;letter-spacing:.02em;}
+.set-sub{font-size:11px;color:var(--text3);margin-top:3px;}
+/* BPM 步进器：上下按钮 */
+.bpm-box{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+#bpmVal{
+  font-size:26px;
+  font-weight:700;
+  font-variant-numeric:tabular-nums;
+  min-width:52px;
+  text-align:center;
+  color:var(--text);
+}
+.bpm-step{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.bpm-btn{
+  width:26px;
+  height:22px;
+  border:1px solid var(--line-strong);
+  border-radius:6px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--text2);
+  transition:color .15s,border-color .15s,background .15s;
+}
+.bpm-btn:hover{color:var(--text);border-color:var(--accent);background:rgba(232,163,61,.08);}
+.bpm-btn:active{transform:translateY(1px);}
+/* 开关 */
+.switch{
+  position:relative;
+  width:46px;
+  height:26px;
+  border-radius:13px;
+  background:var(--surface2);
+  border:1px solid var(--line-strong);
+  transition:background .2s ease,border-color .2s ease;
+  flex-shrink:0;
+}
+.switch .knob{
+  position:absolute;
+  top:2px;
+  left:2px;
+  width:20px;
+  height:20px;
+  border-radius:50%;
+  background:var(--text3);
+  transition:transform .2s ease,background .2s ease;
+}
+.switch[aria-checked="true"]{background:rgba(232,163,61,.25);border-color:var(--accent);}
+.switch[aria-checked="true"] .knob{transform:translateX(20px);background:var(--accent);}
+#rightPanel .hint{
+  margin-top:auto;
+  padding:16px 18px 20px;
+  font-size:12px;
+  color:var(--text3);
+  line-height:1.7;
+  border-top:1px solid var(--line);
+}
+kbd{
+  display:inline-block;
+  min-width:20px;
+  text-align:center;
+  border:1px solid var(--line-strong);
+  border-bottom-width:2px;
+  border-radius:5px;
+  padding:1px 6px;
+  font-size:11px;
+  font-family:var(--body);
+  color:var(--text2);
+  background:var(--surface2);
+}
+
+/* ===== 中栏：主区域 ===== */
+#center{
+  position:relative;
+  flex:1;
+  min-width:0;
+  background:radial-gradient(120% 65% at 50% 10%,rgba(232,163,61,.10),transparent 62%),var(--bg);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+#idleView,#activeView{
+  width:100%;
+  height:100%;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  position:absolute;
+  inset:0;
+}
+#idleView{display:flex;}
+#activeView{display:none;}
+#app.running #idleView{display:none;}
+#app.running #activeView{display:flex;}
+.overline{
+  font-size:13px;
+  letter-spacing:.42em;
+  text-indent:.42em;
+  color:var(--text3);
+  margin-bottom:34px;
+  text-transform:uppercase;
+}
+#startBtn{
+  width:138px;
+  height:138px;
+  border-radius:50%;
+  background:var(--accent);
+  color:#16130C;
+  font-size:28px;
+  font-weight:700;
+  letter-spacing:.14em;
+  text-indent:.14em;
+  box-shadow:0 0 0 7px rgba(232,163,61,.14),0 10px 30px rgba(0,0,0,.35);
+  transition:transform .2s ease,box-shadow .2s ease;
+}
+#startBtn:hover{transform:translateY(-3px);box-shadow:0 0 0 11px rgba(232,163,61,.18),0 16px 36px rgba(0,0,0,.4);}
+#startBtn:active{transform:translateY(0);}
+#idleHint{
+  margin-top:30px;
+  font-size:13px;
+  color:var(--text2);
+  letter-spacing:.1em;
+}
+#toast{
+  position:absolute;
+  top:34px;
+  left:50%;
+  transform:translate(-50%,-8px);
+  background:var(--surface2);
+  border:1px solid var(--line-strong);
+  border-radius:999px;
+  padding:9px 20px;
+  font-size:13px;
+  color:var(--text);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .25s ease,transform .25s ease;
+  z-index:10;
+  white-space:nowrap;
+}
+#toast.show{opacity:1;transform:translate(-50%,0);}
+/* 开始后的展示 */
+#activeTop{
+  position:absolute;
+  top:0;
+  left:0;
+  right:0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:20px 28px;
+}
+#modeTag{
+  font-size:12px;
+  color:var(--accent);
+  border:1px solid rgba(232,163,61,.35);
+  border-radius:999px;
+  padding:4px 12px;
+  letter-spacing:.06em;
+}
+#posText{font-size:13px;color:var(--text2);font-variant-numeric:tabular-nums;}
+#chordBlock{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+}
+#chordName{
+  font-family:var(--display);
+  font-size:clamp(46px,min(10vh,8.5vw),104px);
+  font-weight:700;
+  line-height:1;
+  letter-spacing:.03em;
+  color:var(--text);
+}
+#bigChord{
+  width:min(400px,52vh);
+  max-width:100%;
+  margin-top:18px;
+}
+#bigChord svg{width:100%;height:auto;display:block;max-width:100%;}
+#strumInfo{
+  margin-top:16px;
+  font-size:14px;
+  color:var(--text2);
+  letter-spacing:.12em;
+}
+#strumInfo .glyph{color:var(--accent);font-weight:700;margin:0 4px;}
+#progressWrap{
+  position:absolute;
+  bottom:0;
+  left:0;
+  right:0;
+  padding:0 40px 26px;
+  display:flex;
+  justify-content:center;
+}
+#progress{
+  width:min(560px,84%);
+  height:3px;
+  border-radius:2px;
+  background:var(--line-strong);
+  overflow:hidden;
+}
+#progressFill{
+  width:0%;
+  height:100%;
+  background:var(--accent);
+  border-radius:2px;
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ===== 左栏：常用和弦 ===== -->
+  <aside id="leftPanel" class="side">
+    <div class="panel-head">
+      <div class="panel-title">常用和弦</div>
+      <div class="panel-sub">点击多选 · 选中按顺序播放</div>
+    </div>
+    <div id="chordList"></div>
+    <div id="summaryBar">
+      <span id="sumEmpty">未选中任何和弦</span>
+      <div id="sumChips"></div>
+      <button id="clearBtn" type="button">清空</button>
+    </div>
+  </aside>
+
+  <!-- ===== 中栏：主区域 ===== -->
+  <main id="center">
+    <section id="idleView">
+      <div class="overline">和弦转换练习</div>
+      <button id="startBtn" type="button">开始</button>
+      <div id="idleHint">点空格 / 回车 开始</div>
+    </section>
+    <section id="activeView">
+      <div id="activeTop">
+        <span id="modeTag">按顺序</span>
+        <span id="posText"></span>
+      </div>
+      <div id="chordBlock">
+        <div id="chordName"></div>
+        <div id="bigChord"></div>
+        <div id="strumInfo"></div>
+      </div>
+      <div id="progressWrap"><div id="progress"><div id="progressFill"></div></div></div>
+    </section>
+    <div id="toast"></div>
+  </main>
+
+  <!-- ===== 右栏：设置 ===== -->
+  <aside id="rightPanel" class="side">
+    <div class="panel-head">
+      <div class="panel-title">设置</div>
+    </div>
+    <div class="set-list">
+      <div class="set-row">
+        <div>
+          <div class="set-label">速度</div>
+          <div class="set-sub">每和弦 2 拍（半小节）</div>
+        </div>
+        <div class="bpm-box">
+          <span id="bpmVal">60</span>
+          <div class="bpm-step">
+            <button class="bpm-btn" id="bpmUp" type="button" aria-label="加快 5 BPM"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <button class="bpm-btn" id="bpmDown" type="button" aria-label="减慢 5 BPM"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+        </div>
+      </div>
+      <div class="set-row">
+        <div>
+          <div class="set-label">预览和弦</div>
+          <div class="set-sub">轮到和弦时播放扫弦声</div>
+        </div>
+        <button class="switch" id="previewSwitch" type="button" role="switch" aria-checked="true"><span class="knob"></span></button>
+      </div>
+      <div class="set-row">
+        <div>
+          <div class="set-label">随机</div>
+          <div class="set-sub">洗牌播放，一轮内不重复</div>
+        </div>
+        <button class="switch" id="randomSwitch" type="button" role="switch" aria-checked="false"><span class="knob"></span></button>
+      </div>
+    </div>
+    <div class="hint">
+      播放中按 <kbd>空格</kbd> 停止 · <kbd>Esc</kbd> 退出<br>
+      停止后按 <kbd>空格</kbd> / <kbd>回车</kbd> 开始
+    </div>
+  </aside>
+
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ===================== 配置区 ===================== */
+/* 和弦库：在此增删和弦即可。
+   frets   低E→高e 共6弦：-1=闷音X，0=空弦，>0=品格数
+   fingers 对应每根弦的按弦手指（0=不按），仅用于指法图标注
+   barre   横按（可选）：{fret:品数, from:起始弦序号, to:结束弦序号} */
+const CHORDS = [
+  { name:'C',   frets:[-1, 3, 2, 0, 1, 0], fingers:[0, 3, 2, 0, 1, 0] },
+  { name:'D',   frets:[-1,-1, 0, 2, 3, 2], fingers:[0, 0, 0, 1, 3, 2] },
+  { name:'E',   frets:[ 0, 2, 2, 1, 0, 0], fingers:[0, 2, 3, 1, 0, 0] },
+  { name:'F',   frets:[ 1, 3, 3, 2, 1, 1], fingers:[1, 3, 4, 2, 1, 1], barre:{fret:1, from:0, to:5} },
+  { name:'G',   frets:[ 3, 2, 0, 0, 0, 3], fingers:[3, 2, 0, 0, 0, 4] },
+  { name:'A',   frets:[-1, 0, 2, 2, 2, 0], fingers:[0, 0, 1, 2, 3, 0] },
+  { name:'B',   frets:[-1, 2, 4, 4, 4, 2], fingers:[0, 1, 3, 4, 2, 1], barre:{fret:2, from:1, to:5} },
+  { name:'Am',  frets:[-1, 0, 2, 2, 1, 0], fingers:[0, 0, 2, 3, 1, 0] },
+  { name:'Dm',  frets:[-1,-1, 0, 2, 3, 1], fingers:[0, 0, 0, 2, 3, 1] },
+  { name:'Em',  frets:[ 0, 2, 2, 0, 0, 0], fingers:[0, 2, 3, 0, 0, 0] },
+  { name:'C7',  frets:[-1, 3, 2, 3, 1, 0], fingers:[0, 3, 2, 4, 1, 0] },
+  { name:'D7',  frets:[-1,-1, 0, 2, 1, 2], fingers:[0, 0, 0, 2, 1, 3] },
+  { name:'E7',  frets:[ 0, 2, 0, 1, 0, 0], fingers:[0, 2, 0, 1, 0, 0] },
+  { name:'G7',  frets:[ 3, 2, 0, 0, 0, 1], fingers:[3, 2, 0, 0, 0, 1] },
+  { name:'A7',  frets:[-1, 0, 2, 0, 2, 0], fingers:[0, 0, 1, 0, 2, 0] },
+  { name:'B7',  frets:[-1, 2, 1, 2, 0, 2], fingers:[0, 2, 1, 3, 0, 4] },
+  { name:'Fmaj7',frets:[-1,-1, 3, 2, 1, 0], fingers:[0, 0, 3, 2, 1, 0] },
+  { name:'Am7', frets:[-1, 0, 2, 0, 1, 0], fingers:[0, 0, 2, 0, 1, 0] },
+  { name:'Dm7', frets:[-1,-1, 0, 2, 1, 1], fingers:[0, 0, 0, 3, 1, 2] },
+  { name:'Em7', frets:[ 0, 2, 0, 0, 0, 0], fingers:[0, 2, 0, 0, 0, 0] }
+];
+
+const CHORD_MAP = {};
+CHORDS.forEach(function(c){ CHORD_MAP[c.name] = c; });
+
+/* 扫弦模式：每和弦 2 拍 2 下，可按喜好改成 ['down','up'] 等 */
+const STRUM_PATTERN = ['down','down'];
+const BEATS_PER_CHORD = 2;      /* 每和弦停留拍数 */
+const BPM_MIN = 20, BPM_MAX = 200, BPM_STEP = 5;
+const FADE_IN = 0.25;           /* 淡入占每和弦时长比例 */
+const FADE_OUT = 0.25;          /* 淡出占每和弦时长比例，中间 50% 保持 */
+const OPEN_FREQS = [82.41, 110.00, 146.83, 196.00, 246.94, 329.63];
+
+/* ===================== 状态 ===================== */
+const state = {
+  bpm: 60,
+  preview: true,
+  random: false,
+  selected: [],       /* 选中的和弦名，按选中先后 */
+  active: false,
+  seq: [],            /* 当前播放序列 */
+  seqIndex: 0,
+  chordStart: 0,
+  dwell: 0,           /* 当前和弦时长 ms */
+  raf: 0,
+  audio: null,
+  master: null
+};
+
+/* ===================== DOM ===================== */
+const root = document.getElementById('app');
+const chordList = document.getElementById('chordList');
+const sumChips = document.getElementById('sumChips');
+const sumEmpty = document.getElementById('sumEmpty');
+const clearBtn = document.getElementById('clearBtn');
+const bpmVal = document.getElementById('bpmVal');
+const bpmUp = document.getElementById('bpmUp');
+const bpmDown = document.getElementById('bpmDown');
+const previewSwitch = document.getElementById('previewSwitch');
+const randomSwitch = document.getElementById('randomSwitch');
+const startBtn = document.getElementById('startBtn');
+const toast = document.getElementById('toast');
+const modeTag = document.getElementById('modeTag');
+const posText = document.getElementById('posText');
+const chordName = document.getElementById('chordName');
+const bigChord = document.getElementById('bigChord');
+const strumInfo = document.getElementById('strumInfo');
+const progressFill = document.getElementById('progressFill');
+
+/* ===================== 和弦图绘制（SVG） ===================== */
+const VB_W = 120, VB_H = 150;
+const PAD_L = 16, PAD_R = 8, TOP_H = 28, FRET_H = 29, STR_Y0 = 28, STR_Y1 = 144;
+const STR_COLOR = '#CFC4AE', FRET_COLOR = 'rgba(207,196,174,.32)';
+const DOT_COLOR = '#E8A33D', MUTE_COLOR = '#C96A5A', OPEN_COLOR = '#9A8F77';
+
+function stringX(i){ return PAD_L + i * (VB_W - PAD_L - PAD_R) / 5; }
+
+function chordSVG(chord){
+  const frets = chord.frets;
+  /* 统一从第 1 品（琴枕）开始画，方便对照实际琴颈 */
+  const base = 1;
+  const parts = [];
+  /* 品丝横线（4 品） */
+  for (let r = 0; r <= 4; r++) {
+    const y = STR_Y0 + r * FRET_H;
+    parts.push('<line x1="' + PAD_L + '" y1="' + y + '" x2="' + (VB_W - PAD_R) + '" y2="' + y + '" stroke="' + FRET_COLOR + '" stroke-width="1"/>');
+  }
+  /* 琴弦 */
+  for (let i = 0; i < 6; i++) {
+    parts.push('<line x1="' + stringX(i) + '" y1="' + STR_Y0 + '" x2="' + stringX(i) + '" y2="' + STR_Y1 + '" stroke="' + STR_COLOR + '" stroke-width="1.7"/>');
+  }
+  /* 上琴枕（始终从第 1 品开始） */
+  parts.push('<rect x="' + PAD_L + '" y="25.5" width="' + (VB_W - PAD_L - PAD_R) + '" height="4" rx="1.6" fill="' + STR_COLOR + '"/>');
+  /* 闷音 X / 空弦 O */
+  for (let i = 0; i < 6; i++) {
+    const x = stringX(i);
+    if (frets[i] < 0) {
+      parts.push('<line x1="' + (x - 4.6) + '" y1="9.4" x2="' + (x + 4.6) + '" y2="18.6" stroke="' + MUTE_COLOR + '" stroke-width="1.9" stroke-linecap="round"/>');
+      parts.push('<line x1="' + (x - 4.6) + '" y1="18.6" x2="' + (x + 4.6) + '" y2="9.4" stroke="' + MUTE_COLOR + '" stroke-width="1.9" stroke-linecap="round"/>');
+    } else if (frets[i] === 0) {
+      parts.push('<circle cx="' + x + '" cy="14" r="4.4" fill="none" stroke="' + OPEN_COLOR + '" stroke-width="1.7"/>');
+    }
+  }
+  /* 横按 */
+  if (chord.barre) {
+    const b = chord.barre;
+    const y = STR_Y0 + (b.fret - base + 0.5) * FRET_H;
+    const x1 = stringX(b.from), x2 = stringX(b.to);
+    parts.push('<rect x="' + x1 + '" y="' + (y - 7) + '" width="' + (x2 - x1) + '" height="14" rx="7" fill="' + DOT_COLOR + '"/>');
+    parts.push('<text x="' + (x1 + 8) + '" y="' + (y + 4) + '" text-anchor="middle" font-size="11" font-weight="700" fill="#16130C">1</text>');
+  }
+  /* 指位圆点 + 手指号 */
+  for (let i = 0; i < 6; i++) {
+    const f = frets[i];
+    if (f <= 0) continue;
+    if (chord.barre && f === chord.barre.fret && i >= chord.barre.from && i <= chord.barre.to) continue;
+    const y = STR_Y0 + (f - base + 0.5) * FRET_H;
+    parts.push('<circle cx="' + stringX(i) + '" cy="' + y + '" r="7" fill="' + DOT_COLOR + '"/>');
+    parts.push('<text x="' + stringX(i) + '" y="' + (y + 3.6) + '" text-anchor="middle" font-size="10.5" font-weight="700" fill="#16130C">' + chord.fingers[i] + '</text>');
+  }
+  return '<svg viewBox="0 0 ' + VB_W + ' ' + VB_H + '" role="img" aria-label="' + chord.name + ' 和弦指法图" xmlns="http://www.w3.org/2000/svg">' + parts.join('') + '</svg>';
+}
+
+/* ===================== 左栏渲染 ===================== */
+function renderLeft(){
+  const st = chordList.scrollTop;
+  chordList.innerHTML = CHORDS.map(function(chord){
+    const idx = state.selected.indexOf(chord.name);
+    const sel = idx >= 0 ? ' selected' : '';
+    const badge = idx >= 0 ? '<span class="order-badge">' + (idx + 1) + '</span>' : '';
+    return '<div class="chord-card' + sel + '" data-name="' + chord.name + '" role="button" tabindex="0">' +
+      chordSVG(chord) +
+      '<div class="card-name">' + chord.name + '</div>' + badge + '</div>';
+  }).join('');
+  chordList.scrollTop = st;
+  renderSummary();
+}
+function renderSummary(){
+  if (!state.selected.length) {
+    sumEmpty.style.display = '';
+    sumChips.innerHTML = '';
+    return;
+  }
+  sumEmpty.style.display = 'none';
+  sumChips.innerHTML = state.selected.map(function(name, i){
+    return '<span class="sum-chip"><b>' + (i + 1) + '</b>' + name + '</span>';
+  }).join('');
+}
+function toggleSelect(name){
+  const i = state.selected.indexOf(name);
+  if (i >= 0) state.selected.splice(i, 1);   /* 取消后，后续序号自动递补 */
+  else state.selected.push(name);
+  renderLeft();
+}
+
+/* ===================== 右栏渲染 ===================== */
+function renderRight(){
+  bpmVal.textContent = state.bpm;
+  previewSwitch.setAttribute('aria-checked', state.preview ? 'true' : 'false');
+  randomSwitch.setAttribute('aria-checked', state.random ? 'true' : 'false');
+}
+
+/* ===================== 音频（Web Audio 合成扫弦） ===================== */
+function ensureAudio(){
+  if (!state.audio) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    const ctx = new AC();
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -14;
+    comp.knee.value = 22;
+    comp.ratio.value = 5;
+    comp.attack.value = 0.003;
+    comp.release.value = 0.22;
+    comp.connect(ctx.destination);
+    state.audio = ctx;
+    state.master = comp;
+  }
+  if (state.audio.state === 'suspended') state.audio.resume();
+}
+function pluck(freq, t, vol){
+  const ctx = state.audio;
+  const gain = ctx.createGain();
+  gain.connect(state.master);
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.exponentialRampToValueAtTime(vol, t + 0.006);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 1.15);
+  const filt = ctx.createBiquadFilter();
+  filt.type = 'lowpass';
+  filt.frequency.setValueAtTime(2400, t);
+  filt.frequency.exponentialRampToValueAtTime(900, t + 0.9);
+  filt.Q.value = 0.8;
+  filt.connect(gain);
+  const o1 = ctx.createOscillator();
+  o1.type = 'sawtooth';
+  o1.frequency.value = freq;
+  const g1 = ctx.createGain();
+  g1.gain.value = 0.5;
+  o1.connect(g1); g1.connect(filt);
+  o1.start(t); o1.stop(t + 1.2);
+  const o2 = ctx.createOscillator();
+  o2.type = 'triangle';
+  o2.frequency.value = freq * 2;
+  const g2 = ctx.createGain();
+  g2.gain.value = 0.26;
+  o2.connect(g2); g2.connect(filt);
+  o2.start(t); o2.stop(t + 0.7);
+  const o3 = ctx.createOscillator();
+  o3.type = 'triangle';
+  o3.frequency.value = freq * 3;
+  const g3 = ctx.createGain();
+  g3.gain.value = 0.1;
+  o3.connect(g3); g3.connect(filt);
+  o3.start(t); o3.stop(t + 0.45);
+}
+/* 顺序扫弦：每拍一下，下扫低音弦→高音弦，上扫反之 */
+function strumChord(chord){
+  if (!state.preview || !state.audio) return;
+  const t0 = state.audio.currentTime + 0.03;
+  const beatSec = 60 / state.bpm;
+  STRUM_PATTERN.forEach(function(dir, k){
+    const order = dir === 'down' ? [0, 1, 2, 3, 4, 5] : [5, 4, 3, 2, 1, 0];
+    let idx = 0;
+    order.forEach(function(s){
+      if (chord.frets[s] < 0) return;
+      const freq = OPEN_FREQS[s] * Math.pow(2, Math.max(0, chord.frets[s]) / 12);
+      pluck(freq, t0 + k * beatSec + idx * 0.014, 0.15);
+      idx++;
+    });
+  });
+}
+
+/* ===================== 播放循环 ===================== */
+function buildSeq(){
+  const base = state.selected.map(function(n){ return CHORD_MAP[n]; });
+  if (!state.random) return base;
+  const arr = base.slice();
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  }
+  return arr;
+}
+function renderChord(chord){
+  chordName.textContent = chord.name;
+  bigChord.innerHTML = chordSVG(chord);
+  const n = state.seq.length;
+  posText.textContent = '第 ' + (state.seqIndex + 1) + ' / ' + n + ' 个';
+  modeTag.textContent = state.random ? '随机' : '按顺序';
+  strumInfo.innerHTML = state.preview
+    ? '扫弦 <span class="glyph">' + STRUM_PATTERN.map(function(d){ return d === 'down' ? '↓' : '↑'; }).join('</span> <span class="glyph">') + '</span>'
+    : '预览已关闭';
+  progressFill.style.width = '0%';
+}
+function advance(now){
+  state.seqIndex++;
+  if (state.seqIndex >= state.seq.length) {
+    state.seqIndex = 0;
+    if (state.random) state.seq = buildSeq();
+  }
+  state.chordStart = now;
+  state.dwell = BEATS_PER_CHORD * 60000 / state.bpm;
+  renderChord(state.seq[state.seqIndex]);
+  chordName.style.opacity = '0';
+  bigChord.style.opacity = '0';
+  strumInfo.style.opacity = '0';
+  strumChord(state.seq[state.seqIndex]);
+}
+function tick(now){
+  if (!state.active) return;
+  const el = now - state.chordStart;
+  const d = state.dwell;
+  let op;
+  if (el < d * FADE_IN) {
+    op = el / (d * FADE_IN);
+  } else if (el < d * (1 - FADE_OUT)) {
+    op = 1;
+  } else if (el < d) {
+    op = Math.max(0, 1 - (el - d * (1 - FADE_OUT)) / (d * FADE_OUT));
+  } else {
+    advance(now);
+    state.raf = requestAnimationFrame(tick);
+    return;
+  }
+  chordName.style.opacity = op.toFixed(3);
+  bigChord.style.opacity = op.toFixed(3);
+  strumInfo.style.opacity = op.toFixed(3);
+  progressFill.style.width = Math.min(100, (el / d) * 100).toFixed(2) + '%';
+  state.raf = requestAnimationFrame(tick);
+}
+function start(){
+  if (!state.selected.length) {
+    showToast('请先至少选择一个和弦');
+    return;
+  }
+  ensureAudio();
+  state.seq = buildSeq();
+  state.seqIndex = 0;
+  state.active = true;
+  state.chordStart = performance.now();
+  state.dwell = BEATS_PER_CHORD * 60000 / state.bpm;
+  root.classList.add('running');
+  renderChord(state.seq[0]);
+  chordName.style.opacity = '0';
+  bigChord.style.opacity = '0';
+  strumInfo.style.opacity = '0';
+  strumChord(state.seq[0]);
+  state.raf = requestAnimationFrame(tick);
+}
+function stop(){
+  state.active = false;
+  cancelAnimationFrame(state.raf);
+  root.classList.remove('running');
+}
+function togglePractice(){
+  if (state.active) stop();
+  else start();
+}
+
+/* ===================== 提示 ===================== */
+let toastTimer = 0;
+function showToast(msg){
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ toast.classList.remove('show'); }, 1700);
+}
+
+/* ===================== 事件 ===================== */
+document.addEventListener('keydown', function(e){
+  if (e.code === 'Space') {
+    e.preventDefault();
+    togglePractice();
+  }
+  if (e.code === 'Enter' && !state.active) {
+    const card = e.target && e.target.closest ? e.target.closest('.chord-card') : null;
+    if (card) return;   /* 和弦卡片上的回车用于选中/取消，不触发开始 */
+    e.preventDefault();
+    start();
+  }
+  if (e.code === 'Escape' && state.active) {
+    stop();
+  }
+});
+startBtn.addEventListener('click', function(e){
+  e.currentTarget.blur();
+  start();
+});
+chordList.addEventListener('click', function(e){
+  const card = e.target.closest('.chord-card');
+  if (card) toggleSelect(card.dataset.name);
+});
+chordList.addEventListener('keydown', function(e){
+  if (e.key === 'Enter') {
+    const card = e.target.closest('.chord-card');
+    if (card) { e.preventDefault(); toggleSelect(card.dataset.name); }
+  }
+});
+clearBtn.addEventListener('click', function(e){
+  e.currentTarget.blur();
+  state.selected = [];
+  if (state.active) stop();
+  renderLeft();
+});
+bpmUp.addEventListener('click', function(e){
+  e.currentTarget.blur();
+  state.bpm = Math.min(BPM_MAX, state.bpm + BPM_STEP);
+  renderRight();
+});
+bpmDown.addEventListener('click', function(e){
+  e.currentTarget.blur();
+  state.bpm = Math.max(BPM_MIN, state.bpm - BPM_STEP);
+  renderRight();
+});
+previewSwitch.addEventListener('click', function(e){
+  e.currentTarget.blur();
+  state.preview = !state.preview;
+  renderRight();
+  if (state.active) renderChord(state.seq[state.seqIndex]);
+});
+randomSwitch.addEventListener('click', function(e){
+  e.currentTarget.blur();
+  state.random = !state.random;
+  renderRight();
+  if (state.active) renderChord(state.seq[state.seqIndex]);
+});
+
+/* ===================== 初始化 ===================== */
+renderLeft();
+renderRight();
+})();
+</script>
+</body>
+</html>
