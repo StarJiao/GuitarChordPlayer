@@ -16,21 +16,21 @@
 - 和弦预告：切换前高亮提醒，练习提前反应，可开关
 - 快捷键：空格 开始/暂停，回车 开始，Esc 退出
 
-## 截图
+## Screenshots
 
 | 和弦选择 | 播放中 |
 | --- | --- |
-| ![和弦选择](截图/chord-select.png) | ![播放中](截图/playing.png) |
+| ![和弦选择](screenshots/chord-select.png) | ![播放中](screenshots/playing.png) |
 
 移动端：
 
 | 未开始 | 播放中 |
 | --- | --- |
-| ![移动端未开始](截图/mobile-idle.png) | ![移动端播放中](截图/mobile-playing.png) |
+| ![移动端未开始](screenshots/mobile-idle.png) | ![移动端播放中](screenshots/mobile-playing.png) |
 
 ## 使用
 
-- 直接双击 `播放器本体/index.html`，或拖入浏览器打开。
+- 直接双击 `player/index.html`，或拖入浏览器打开。
 - 手机下载文件后，浏览器或html查看器打开
 - 使用脚本在电脑启动站点，手机打开地址预览（手机与本机连同一 WiFi）：
 
@@ -42,9 +42,9 @@
 
 ## 配置与自定义
 
-所有玩法配置（和弦库、扫弦节奏、节拍、主题配色）都集中在 `播放器本体/index.html` 顶部的「配置区」，改完保存刷新即生效。
+所有玩法配置（和弦库、扫弦节奏、节拍、主题配色）都集中在 `player/index.html` 顶部的「配置区」，改完保存刷新即生效。
 
-功能设计细节、每个配置项的作用与修改方法，见 **[配置与设计说明](配置与设计说明.md)**。
+功能设计细节、每个配置项的作用与修改方法，见 **[config-and-design](config-and-design.md)**。
 
 快速示例——增加一个自定义和弦：
 
