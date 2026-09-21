@@ -202,6 +202,7 @@ function renderLeft(){
   }).join('');
   chordList.scrollTop = st;
   renderSummary();
+  persist();
 }
 function renderSummary(){
   if (!state.selected.length) {
@@ -239,6 +240,7 @@ function renderRight(){
   hideListSwitch.setAttribute('aria-checked', state.autoHideList ? 'true' : 'false');
   hideSetSwitch.setAttribute('aria-checked', state.autoHideSet ? 'true' : 'false');
   multiSwitch.setAttribute('aria-checked', state.multi ? 'true' : 'false');
+  persist();
 }
 
 /* ===================== 音频（真实采样 + 合成兜底） ===================== */
@@ -963,6 +965,44 @@ randomSwitch.addEventListener('click', function(e){
     renderStandby();
   }
 });
+
+/* ===================== 状态持久化（localStorage） ===================== */
+function buildModel() {
+  return {
+    v: GcpStore.VERSION,
+    selected: state.selected.slice(),
+    settings: {
+      bpm: state.bpm,
+      beats: state.beats,
+      preview: state.preview,
+      random: state.random,
+      multi: state.multi,
+      autoHideList: state.autoHideList,
+      autoHideSet: state.autoHideSet
+    }
+  };
+}
+function persist() {
+  if (typeof GcpStore !== 'undefined') GcpStore.save(buildModel());
+}
+(function applyStored() {
+  try {
+    var saved = GcpStore.load();
+    if (saved && Array.isArray(saved.selected)) {
+      state.selected = saved.selected.slice();
+    }
+    if (saved && saved.settings) {
+      var s = saved.settings;
+      if (typeof s.bpm === 'number') state.bpm = s.bpm;
+      if (typeof s.beats === 'number') state.beats = s.beats;
+      if (typeof s.preview === 'boolean') state.preview = s.preview;
+      if (typeof s.random === 'boolean') state.random = s.random;
+      if (typeof s.multi === 'boolean') state.multi = s.multi;
+      if (typeof s.autoHideList === 'boolean') state.autoHideList = s.autoHideList;
+      if (typeof s.autoHideSet === 'boolean') state.autoHideSet = s.autoHideSet;
+    }
+  } catch (e) { /* 存储不可用时忽略，使用默认值 */ }
+})();
 
 /* ===================== 初始化 ===================== */
 renderLeft();

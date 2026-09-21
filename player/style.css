@@ -30,6 +30,8 @@
   /* 显示字体：Windows 落 Palatino Linotype，Android 落 Noto Serif SC，兜底 Georgia */
   --display:"Iowan Old Style","Palatino Linotype",Palatino,"Songti SC","Noto Serif SC","Source Han Serif SC","STSong",Georgia,serif;
   --body:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  /* 左右侧栏等宽：改一处即两侧同步 */
+  --side-w:318px;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{height:100%;}
@@ -59,8 +61,8 @@ button:focus-visible,.switch:focus-visible,.chord-card:focus-visible{outline:2px
   transition:width .35s ease,opacity .35s ease,padding-left .35s ease,padding-right .35s ease,border-width .35s ease;
   overflow:hidden;
 }
-#leftPanel{width:318px;border-right:1px solid var(--line);}
-#rightPanel{width:252px;border-left:1px solid var(--line);}
+#leftPanel{width:var(--side-w);border-right:1px solid var(--line);}
+#rightPanel{width:var(--side-w);border-left:1px solid var(--line);}
 /* 桌面端：running 时按配置收起对应面板（hide-running 由 JS 按"自动隐藏"开关加） */
 #app.running .side.hide-running{
   width:0;
