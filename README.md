@@ -52,6 +52,10 @@
 - `fingers`：按弦手指 1–4，`0` 不按
 - `barre`：可选横按配置 `{ fret, from, to }`
 
+## todo
+-[ ] 每行展示几个和弦支持配置
+-[ ] 仅展示和弦名支持配置
+
 ## 反馈与支持
 
 - 问题或建议：[GitHub Issues](https://github.com/StarJiao/GuitarChordPlayer/issues)
